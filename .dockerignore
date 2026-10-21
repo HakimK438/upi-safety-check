@@ -1,0 +1,10 @@
+.git
+**/.venv
+**/node_modules
+**/__pycache__
+frontend
+backend/data/train_*.csv
+backend/data/_*
+backend/data/raw
+backend/data/shade63
+backend/tests

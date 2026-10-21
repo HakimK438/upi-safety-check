@@ -1,0 +1,14 @@
+# Render blueprint for the backend API. The frontend is deployed on Vercel (see README, "Deploy").
+services:
+  - type: web
+    name: upi-safety-check-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    # Measured: about 580 MB in use once PyTorch and the models are loaded, so the free and starter (512 MB) plans run out. standard has 2 GB.
+    plan: standard
+    healthCheckPath: /api/health
+    envVars:
+      # lets any *.vercel.app address call the API; set CORS_ORIGINS too if you add a custom domain
+      - key: CORS_ORIGIN_REGEX
+        value: https://.*\.vercel\.app

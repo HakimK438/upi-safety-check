@@ -54,7 +54,9 @@ backend/
   models/              the trained fraud models (fraud_models.joblib), the older upload risk model, the model registry
   ml/                  scripts that regenerate the data, the models and the sample
   tests/               pytest suite
+  Dockerfile           backend image (used by Render)
 frontend/              React app (src/pages, src/components, src/lib)
+render.yaml            Render blueprint for the backend
 docs/                  DECISIONS.md (design decisions) and ml/ (evaluation results shown on the Fraud check page)
 ```
 
@@ -73,6 +75,16 @@ data/ (synthetic payments) --ml/train_fraud.py--> models/fraud_models.joblib + d
 - **Models:** time split only (train days 0-119, validation 120-149, test 150-182). Three-zone decision: Block, Check, Approve. Details in [docs/DECISIONS.md](docs/DECISIONS.md).
 - **Uploads** (`POST /api/merchant/datasets`) are validated and held in memory for 2 hours. They are scored by the older risk model, not the four fraud models.
 - **Review marks** (Fraud / Fine on Risk alerts) are written to `backend/data/review_labels/` (not committed).
+
+## Deploy
+
+The frontend is static and goes on **Vercel**. The backend (FastAPI + PyTorch/XGBoost models) is too large for Vercel functions, so it runs as a Docker service on **Render**. The two are joined by one environment variable.
+
+1. **Backend on Render.** New > Blueprint > pick this repository and branch; Render reads `render.yaml` and builds `backend/Dockerfile`. The plan is `standard` (2 GB) because the backend uses about 580 MB once PyTorch loads, which is more than the 512 MB plans have. When it is live, note its address, for example `https://upi-safety-check-api.onrender.com`. Check `https://<that address>/api/health`. The first request after a start analyses the sample (about half a minute).
+2. **Frontend on Vercel.** Add New > Project > import this repository, branch `clean-release`, and set **Root Directory** to `frontend`. Framework preset: Vite (`frontend/vercel.json` sets the build and the single-page fallback). Under Environment Variables add `VITE_API_BASE` = `https://<the Render address>/api`, then Deploy.
+3. **CORS.** The API already accepts any `https://*.vercel.app` address (`CORS_ORIGIN_REGEX` in `render.yaml`). For a custom domain, add it to `CORS_ORIGINS` on Render (comma-separated).
+
+Local Docker test of the backend: `docker build -f backend/Dockerfile -t upi-safety-api .` then `docker run -p 8010:8010 upi-safety-api`.
 
 ## Regenerating the data and models (optional)
 
