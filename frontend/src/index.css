@@ -588,3 +588,10 @@ tbody tr:hover { background: var(--sunken); }
 .fraud-hero p { color: rgb(255 255 255 / 0.85); }
 
 .seg button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ---------- desktop scale ------------------------------------------------------------------- */
+/* Everything is sized in rem, so shrinking the root size shows the whole app at about 80% on desktop screens.
+   Phones keep the normal size (80% would be too small to read and tap). */
+@media (min-width: 1024px) {
+  html { font-size: 80%; }
+}
