@@ -5,8 +5,8 @@ services:
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: .
-    # Measured: about 580 MB in use once PyTorch and the models are loaded, so the free and starter (512 MB) plans run out. standard has 2 GB.
-    plan: standard
+    # Free plan (512 MB). The app uses about 300 MB without PyTorch. Free services sleep after 15 minutes without visits.
+    plan: free
     healthCheckPath: /api/health
     envVars:
       # lets any *.vercel.app address call the API; set CORS_ORIGINS too if you add a custom domain

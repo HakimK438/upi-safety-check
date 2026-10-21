@@ -2,7 +2,7 @@
 
 A fraud and payment-safety dashboard for small UPI merchants. It answers three questions in plain words: **did the money arrive, where did money go missing, and which payments look like fraud.**
 
-Backend: FastAPI + scikit-learn / XGBoost / LightGBM / PyTorch (`backend/`). Frontend: React + Vite + Tailwind + Recharts PWA (`frontend/`). No login, English only.
+Backend: FastAPI + scikit-learn / XGBoost / LightGBM (`backend/`). Frontend: React + Vite + Tailwind + Recharts PWA (`frontend/`). No login, English only.
 
 > **All data and every score here is synthetic.** The four fraud models were trained and tested on synthetic payments in the IEEE-CIS layout, and the Dashboard sample is made from their unseen test period. Nothing says anything about real UPI fraud rates.
 
@@ -14,7 +14,7 @@ Backend (Python 3.12):
 ```
 cd backend
 python -m venv .venv
-.venv\Scripts\pip install -r requirements.txt            # see the note in the file about the CPU build of PyTorch
+.venv\Scripts\pip install -r requirements.txt            # PyTorch is only needed to retrain, not to run
 .venv\Scripts\python -m uvicorn app.main:app --port 8010
 ```
 Frontend (Node 20+), in a second terminal:
@@ -78,9 +78,9 @@ data/ (synthetic payments) --ml/train_fraud.py--> models/fraud_models.joblib + d
 
 ## Deploy
 
-The frontend is static and goes on **Vercel**. The backend (FastAPI + PyTorch/XGBoost models) is too large for Vercel functions, so it runs as a Docker service on **Render**. The two are joined by one environment variable.
+The frontend is static and goes on **Vercel**. The backend (FastAPI + the trained models) does not fit Vercel functions, so it runs as a Docker service on **Render** (the free plan is enough). The two are joined by one environment variable.
 
-1. **Backend on Render.** New > Blueprint > pick this repository and branch; Render reads `render.yaml` and builds `backend/Dockerfile`. The plan is `standard` (2 GB) because the backend uses about 580 MB once PyTorch loads, which is more than the 512 MB plans have. When it is live, note its address, for example `https://upi-safety-check-api.onrender.com`. Check `https://<that address>/api/health`. The first request after a start analyses the sample (about half a minute).
+1. **Backend on Render.** New > Blueprint > pick this repository and branch; Render reads `render.yaml` and builds `backend/Dockerfile`. The plan is `free`: tested with the free plan's limits (512 MB, 0.1 CPU), the backend starts in about a minute and uses about 200 MB, because the neural network ships as plain NumPy arrays and needs no PyTorch. Free services sleep after 15 minutes without visits, so the first visit after a pause takes about a minute to wake. When it is live, note its address, for example `https://upi-safety-check-api.onrender.com`. Check `https://<that address>/api/health`. The sample ships with a prepared cache, so the Dashboard opens in a few seconds once the service is awake.
 2. **Frontend on Vercel.** Add New > Project > import this repository, branch `clean-release`, and set **Root Directory** to `frontend`. Framework preset: Vite (`frontend/vercel.json` sets the build and the single-page fallback). Under Environment Variables add `VITE_API_BASE` = `https://<the Render address>/api`, then Deploy.
 3. **CORS.** The API already accepts any `https://*.vercel.app` address (`CORS_ORIGIN_REGEX` in `render.yaml`). For a custom domain, add it to `CORS_ORIGINS` on Render (comma-separated).
 

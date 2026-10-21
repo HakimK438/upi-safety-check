@@ -8,9 +8,9 @@ early stopping on the LAST 10% of the training rows (rows are time-ordered, so n
 from __future__ import annotations
 
 import numpy as np
-import torch
 from sklearn.base import BaseEstimator, ClassifierMixin
-from torch import nn
+
+# PyTorch is only needed to TRAIN the network (TorchMLP). The shipped models use NumpyMLP below, so serving needs no PyTorch.
 
 
 class TorchMLP(BaseEstimator, ClassifierMixin):
@@ -19,14 +19,19 @@ class TorchMLP(BaseEstimator, ClassifierMixin):
         self.hidden, self.dropout, self.lr, self.weight_decay = hidden, dropout, lr, weight_decay
         self.epochs, self.batch_size, self.patience, self.pos_weight, self.random_state = epochs, batch_size, patience, pos_weight, random_state
 
-    def _net(self, n_in: int) -> nn.Module:
-        layers: list[nn.Module] = []
+    def _net(self, n_in: int):  # -> torch.nn.Module
+        from torch import nn
+
+        layers: list = []
         for h in self.hidden:
             layers += [nn.Linear(n_in, h), nn.BatchNorm1d(h), nn.ReLU(), nn.Dropout(self.dropout)]
             n_in = h
         return nn.Sequential(*layers, nn.Linear(n_in, 1))
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "TorchMLP":
+        import torch
+        from torch import nn
+
         torch.manual_seed(self.random_state)
         X = np.asarray(X, dtype=np.float32)
         y = np.asarray(y, dtype=np.float32)
@@ -64,8 +69,64 @@ class TorchMLP(BaseEstimator, ClassifierMixin):
         return self
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        import torch
+
         with torch.no_grad():
             p = torch.sigmoid(self.net_(torch.from_numpy(np.asarray(X, dtype=np.float32))).squeeze(1)).numpy()
+        return np.column_stack([1 - p, p])
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
+
+
+class NumpyMLP(BaseEstimator, ClassifierMixin):
+    """The trained TorchMLP as plain NumPy arrays: same predictions, no PyTorch needed to load or run it.
+
+    In evaluation mode a layer is Linear -> BatchNorm -> ReLU (dropout does nothing), and BatchNorm is a fixed scale and shift,
+    so each block folds into one weight matrix and one bias. Build it with `NumpyMLP.from_torch(trained_model)`.
+    """
+
+    def __init__(self, weights: list | None = None, biases: list | None = None) -> None:
+        self.weights, self.biases = weights, biases
+        self.classes_ = np.array([0, 1])
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "NumpyMLP":  # noqa: ARG002
+        raise NotImplementedError("NumpyMLP only serves a network trained with TorchMLP; train with TorchMLP and convert.")
+
+    def __sklearn_is_fitted__(self) -> bool:
+        return self.weights is not None
+
+    @classmethod
+    def from_torch(cls, m: "TorchMLP") -> "NumpyMLP":
+        import torch
+
+        mods = list(m.net_.eval())
+        weights: list[np.ndarray] = []
+        biases: list[np.ndarray] = []
+        i = 0
+        while i < len(mods):
+            lin = mods[i]
+            W = lin.weight.detach().double().numpy().T  # (in, out)
+            b = lin.bias.detach().double().numpy()
+            if i + 1 < len(mods) and isinstance(mods[i + 1], torch.nn.BatchNorm1d):
+                bn = mods[i + 1]
+                scale = bn.weight.detach().double().numpy() / np.sqrt(bn.running_var.detach().double().numpy() + bn.eps)
+                W = W * scale
+                b = (b - bn.running_mean.detach().double().numpy()) * scale + bn.bias.detach().double().numpy()
+                i += 4  # Linear, BatchNorm, ReLU, Dropout
+            else:
+                i += 1  # the final Linear layer
+            weights.append(W.astype(np.float32))
+            biases.append(b.astype(np.float32))
+        return cls(weights, biases)
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        h = np.asarray(X, dtype=np.float32)
+        for k, (W, b) in enumerate(zip(self.weights, self.biases)):
+            h = h @ W + b
+            if k < len(self.weights) - 1:
+                h = np.maximum(h, 0.0)
+        p = (1.0 / (1.0 + np.exp(-h))).reshape(-1).astype(np.float64)
         return np.column_stack([1 - p, p])
 
     def predict(self, X: np.ndarray) -> np.ndarray:

@@ -83,3 +83,8 @@
 - The repository keeps only what runs the site. Everything else (real IEEE-CIS / ULB / old UPI datasets, notebooks, original idea documents, generated test files, screenshots, logs, old reports) was moved out of the project folder to a sibling `ml-upi-archive/`.
 - The synthetic data folder `ieee_synth` is now plain `backend/data/`. The sample (`data/merchant_sample/`) and the trained models (`models/*.joblib`) are committed because the app needs them; real datasets, the optional Shade63 message set (no licence), caches and review marks are git-ignored, as are `CLAUDE.md`, `.claude/` and `.mcp.json`.
 - `ml/train_txn_risk.py` and `ml/fetch_datasets.py` were archived: the older risk model (`models/txn_risk.joblib`) ships as a file, its training data is gone.
+
+## 2026-10-21: Backend small enough for a free host (user could not pay for hosting)
+- The neural network in `models/fraud_models.joblib` is now `NumpyMLP` (plain NumPy arrays, batch norm folded into the weights). It matches the PyTorch version to about 1e-6 on 20,000 payments, and all four models score the same. PyTorch is only needed to retrain; `ml/export_numpy_mlp.py` converts the freshly trained model.
+- Serving memory dropped from about 580 MB to about 200 MB, so the backend runs on Render's free plan (512 MB, 0.1 CPU): tested in Docker with exactly those limits.
+- The analysed-sample cache (`data/merchant_sample/_analyzed.pkl`) is committed and keyed on file content (line endings ignored), so a server loads it in under a second instead of rebuilding for minutes on a tiny CPU.

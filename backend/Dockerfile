@@ -7,13 +7,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 && rm 
 
 WORKDIR /app/backend
 COPY backend/requirements.txt .
-# CPU-only PyTorch (the neural network in the shipped fraud models needs it), then the rest
-RUN pip install torch==2.5.0 --index-url https://download.pytorch.org/whl/cpu && pip install -r requirements.txt
+# No PyTorch: the neural network ships as NumPy arrays, which keeps the image small and the memory under 512 MB
+RUN pip install --default-timeout=300 --retries 10 -r requirements.txt
 
-# Only what the running app needs: code, trained models, the sample, the message data and the evaluation results
+# Only what the running app needs: code, trained models, the sample (and its prepared cache), the message data and the evaluation results
 COPY backend/app app
 COPY backend/models models
-COPY backend/data/merchant_sample/transactions.csv data/merchant_sample/transactions.csv
+COPY backend/data/merchant_sample data/merchant_sample
 COPY backend/data/spam.csv data/spam.csv
 COPY docs/ml/fraud_results.json /app/docs/ml/fraud_results.json
 

@@ -8,6 +8,7 @@ There are no user accounts in this project, so isolation between merchants rests
 
 from __future__ import annotations
 
+import hashlib
 import io
 import pickle
 import secrets
@@ -59,9 +60,15 @@ CACHE = Path(__file__).resolve().parents[2] / "data" / "merchant_sample" / "_ana
 
 
 def _signature() -> str:
-    """Changes when the sample CSV or any code that shapes the analysed dataset changes, so a stale cache is never used."""
-    parts = [CACHE.parent / "transactions.csv", *(Path(__file__).with_name(f) for f in ("sample.py", "model.py", "reconcile.py", "risk.py", "actions.py", "analytics.py", "store.py"))]
-    return "|".join(f"{p.name}:{int(p.stat().st_mtime)}:{p.stat().st_size}" if p.exists() else f"{p.name}:none" for p in parts)
+    """Changes when the sample CSV or any code that shapes the analysed dataset changes, so a stale cache is never used.
+
+    It hashes file CONTENT (line endings ignored), not timestamps, so a cache built on one machine is valid on another."""
+    names = [CACHE.parent / "transactions.csv", *(Path(__file__).with_name(f) for f in ("sample.py", "model.py", "reconcile.py", "risk.py", "actions.py", "analytics.py", "store.py"))]
+    h = hashlib.sha1()
+    for p in names:
+        h.update(p.name.encode())
+        h.update(p.read_bytes().replace(b"\r\n", b"\n") if p.exists() else b"missing")
+    return h.hexdigest()
 
 
 def _cached_sample() -> MerchantDataset | None:
