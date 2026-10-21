@@ -1,0 +1,37 @@
+# --- private / local tooling (never pushed) ---
+CLAUDE.md
+**/CLAUDE.md
+.claude/
+.mcp.json
+graphify-out/
+.env
+.env.*
+*.local
+.vscode/
+.idea/
+
+# --- logs, caches, build output ---
+*.log
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+node_modules/
+dist/
+docs/_shots/
+
+# --- generated at run time ---
+# analysed sample cache and big feature caches; both are rebuilt automatically
+backend/data/merchant_sample/_analyzed.pkl
+backend/data/_features.pkl
+backend/data/_walk_forward.json
+# the merchant's Fraud / Fine marks
+backend/data/review_labels/
+
+# --- data that cannot be published ---
+# real Kaggle / third-party datasets (licence) and the optional Indian scam-message set (no licence)
+backend/data/raw/
+backend/data/shade63/
+
+# The synthetic data (backend/data/*.csv), the sample (backend/data/merchant_sample/) and the trained models
+# (backend/models/*.joblib) are deliberately NOT ignored: the app needs them to run.
